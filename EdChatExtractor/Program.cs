@@ -17,9 +17,7 @@ namespace EdChatExtractor
         {
             JournalScanner journalScanner = new JournalScanner();
 
-            JournalScanner.ReceiveTextHandler += JournalScanner_ReceiveTextHandler;
-            JournalScanner.SendTextHandler += JournalScanner_SendTextHandler;
-            JournalScanner.LoadGameHandler += JournalScanner_LoadGameHandler;
+            JournalScanner.OnEventHandler += JournalScanner_OnEventHandler;
 
             if (!Directory.Exists(exportDirectory))
                 Directory.CreateDirectory(exportDirectory);
@@ -34,38 +32,54 @@ namespace EdChatExtractor
             Console.WriteLine($"Extracted to \"{Path.GetFullPath(exportDirectory)}\"");
         }
 
-        private static void JournalScanner_SendTextHandler(object? sender, EventArgs e)
-        {
-            JournalScanner.SendTextEventArgs e1 = (JournalScanner.SendTextEventArgs)e;
 
-            if (e1.Timestamp == null || e1.To == null || e1.Message == null)
+        private static void JournalScanner_OnEventHandler(object? sender, EventArgs e)
+        {
+            JournalScanner.OnEventArgs eArgs = (JournalScanner.OnEventArgs)e;
+            JsonClass.Root onEvent = eArgs.OnEvent;
+            
+            switch (onEvent._event)
+            {
+                case "SendText":
+                    JournalScanner_SendTextHandler(sender, onEvent);
+                    break;
+                case "ReceiveText":
+                    JournalScanner_ReceiveTextHandler(sender, onEvent);
+                    break;
+                case "LoadGame":
+                    JournalScanner_LoadGameHandler(sender, onEvent);
+                    break;
+            }
+        }
+
+        private static void JournalScanner_SendTextHandler(object? sender, JsonClass.Root _event)
+        {
+            if (_event.To == null || _event.Message == null)
                 return;
 
             if (currentCommander == null)
                 currentCommander = "---";
 
-            EdMessage m = new((DateTime)e1.Timestamp, currentCommander, EdMessage.Direction.Sending, e1.To, e1.Message);
+            EdMessage m = new(_event.timestamp, currentCommander, EdMessage.Direction.Sending, _event.To, _event.Message);
 
             ExtractMessage(m);
 
             Console.WriteLine(m);
         }
 
-        private static void JournalScanner_ReceiveTextHandler(object? sender, EventArgs e)
+        private static void JournalScanner_ReceiveTextHandler(object? sender, JsonClass.Root _event)
         {
-            JournalScanner.ReceiveTextEventArgs e1 = (JournalScanner.ReceiveTextEventArgs)e;
-            
-            if (e1.Timestamp == null || e1.From == null || e1.Message == null || e1.Channel == null || e1.Channel.Equals("NPC", StringComparison.OrdinalIgnoreCase))
+            if (_event.From == null || _event.Message == null || _event.Channel == null || _event.Channel.Equals("NPC", StringComparison.OrdinalIgnoreCase))
                 return;
 
             if (currentCommander == null)
                 currentCommander = "---";
 
-            string channel = e1.Channel;
-            if (e1.Channel.Equals("player"))
-                channel = e1.From;
+            string channel = _event.Channel;
+            if (_event.Channel.Equals("player"))
+                channel = _event.From;
 
-            EdMessage m = new((DateTime)e1.Timestamp, e1.From, EdMessage.Direction.Receiving, channel, e1.Message);
+            EdMessage m = new(_event.timestamp, _event.From, EdMessage.Direction.Receiving, channel, _event.Message);
             
             ExtractMessage(m);
 
@@ -87,10 +101,9 @@ namespace EdChatExtractor
             found.Write($"[{message.timestamp}] {message.cmdr} \t {message.directionString} \t {message.message}");
         }
 
-        private static void JournalScanner_LoadGameHandler(object? sender, EventArgs e)
+        private static void JournalScanner_LoadGameHandler(object? sender, JsonClass.Root _event)
         {
-            JournalScanner.LoadGameEventArgs lge = (JournalScanner.LoadGameEventArgs)e;
-            currentCommander = lge.LoadGame.Value<string>("Commander");
+            currentCommander = _event.Commander;
         }
     }
 }
