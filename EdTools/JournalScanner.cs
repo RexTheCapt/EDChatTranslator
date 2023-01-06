@@ -73,15 +73,22 @@ namespace EdTools
                         string? read = reader.ReadLine();
 
                         if (read == null) continue;
+                        JsonClass.Root? _event;
 
-                        JsonClass.Root? _event = JsonConvert.DeserializeObject<JsonClass.Root>(read);
+                        try
+                        {
+                            _event = JsonConvert.DeserializeObject<JsonClass.Root>(read);
+                        } catch (Exception e)
+                        {
+                            OnError(new OnErrorArgs(_event: JsonConvert.DeserializeObject<JObject>(read), e, journal: newest, firstRun: FirstRun));
+                            continue;
+                        }
+
                         if (_event != null)
                         {
                             DateTime currentEventDateTime = _event.timestamp;
                             if (currentEventDateTime >= LastEventTime && currentEventDateTime != LastProcessedEventTime || overrideFile != null)
                             {
-                                string? eventType = _event._event;
-
                                 if (!sendEventsOnFirstRun && FirstRun && overrideFile == null)
                                     goto SkipEventSend;
 
@@ -130,6 +137,34 @@ namespace EdTools
             public JsonClass.Root OnEvent { get; private set; }
             public string Journal { get; private set; }
             public bool FirstRun { get; private set; }
+        }
+
+        public static event EventHandler OnErrorHandler;
+
+        protected virtual void OnError(OnErrorArgs e)
+        {
+            EventHandler handler = OnErrorHandler;
+            handler?.Invoke(this, e);
+        }
+
+        public class OnErrorArgs : System.EventArgs
+        {
+            public OnErrorArgs(JObject? _event, Exception exception, string journal, bool firstRun)
+            {
+                OnError = _event;
+                this.FirstRun = firstRun;
+                this.Journal = journal;
+                this.Exception = exception;
+            }
+
+            /// <summary>
+            /// <para>timestamp</para>
+            /// <para>event</para>
+            /// </summary>
+            public JObject? OnError { get; private set; }
+            public string Journal { get; private set; }
+            public bool FirstRun { get; private set; }
+            public Exception Exception { get; private set; }
         }
     }
 }
