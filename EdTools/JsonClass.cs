@@ -44,7 +44,7 @@ namespace EdTools
             public string Commander { get; set; }
             public bool Horizons { get; set; }
             public string Ship { get; set; }
-            public int ShipID { get; set; }
+            public long ShipID { get; set; }
             public string ShipName { get; set; }
             public string ShipIdent { get; set; }
             public float FuelLevel { get; set; }
@@ -209,7 +209,7 @@ namespace EdTools
             public string ShipType { get; set; }
             public string ShipType_Localised { get; set; }
             public string StoreOldShip { get; set; }
-            public int StoreShipID { get; set; }
+            public long StoreShipID { get; set; }
             public int CrewID { get; set; }
             public string Role { get; set; }
             public bool TargetLocked { get; set; }
@@ -273,7 +273,7 @@ namespace EdTools
             public string CrimeType { get; set; }
             public int Fine { get; set; }
             public float BrokerPercentage { get; set; }
-            public int ShipMarketID { get; set; }
+            public long ShipMarketID { get; set; }
             public float Distance { get; set; }
             public int TransferPrice { get; set; }
             public int TransferTime { get; set; }
@@ -342,8 +342,8 @@ namespace EdTools
             public string CrewRole { get; set; }
             public string Operation { get; set; }
             public string CrewName { get; set; }
-            public int Deposit { get; set; }
-            public int PlayerBalance { get; set; }
+            public long Deposit { get; set; }
+            public long PlayerBalance { get; set; }
             public long CarrierBalance { get; set; }
             public long ReserveBalance { get; set; }
             public long AvailableBalance { get; set; }
@@ -810,7 +810,7 @@ namespace EdTools
 
         public class Shipshere
         {
-            public int ShipID { get; set; }
+            public long ShipID { get; set; }
             public string ShipType { get; set; }
             public string Name { get; set; }
             public int Value { get; set; }
@@ -820,7 +820,7 @@ namespace EdTools
 
         public class Shipsremote
         {
-            public int ShipID { get; set; }
+            public long ShipID { get; set; }
             public string ShipType { get; set; }
             public string ShipType_Localised { get; set; }
             public string Name { get; set; }
