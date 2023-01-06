@@ -85,7 +85,7 @@ namespace EdTools
                                 if (!sendEventsOnFirstRun && FirstRun && overrideFile == null)
                                     goto SkipEventSend;
 
-                                OnEvent(new OnEventArgs(_event: _event, FirstRun));
+                                OnEvent(new OnEventArgs(_event: _event, journal: newest, firstRun: FirstRun));
 
                             SkipEventSend:
                                 if (overrideFile == null)
@@ -116,10 +116,11 @@ namespace EdTools
 
         public class OnEventArgs : System.EventArgs
         {
-            public OnEventArgs(JsonClass.Root _event, bool firstRun)
+            public OnEventArgs(JsonClass.Root _event, string journal, bool firstRun)
             {
                 OnEvent = _event;
                 this.FirstRun = firstRun;
+                this.Journal = journal;
             }
 
             /// <summary>
@@ -127,6 +128,7 @@ namespace EdTools
             /// <para>event</para>
             /// </summary>
             public JsonClass.Root OnEvent { get; private set; }
+            public string Journal { get; private set; }
             public bool FirstRun { get; private set; }
         }
     }
