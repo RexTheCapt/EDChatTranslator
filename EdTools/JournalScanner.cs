@@ -147,6 +147,12 @@ namespace EdTools
             handler?.Invoke(this, e);
         }
 
+        public void Dispose()
+        {
+            _instance = null;
+            _journalPath = "";
+        }
+
         public class OnErrorArgs : System.EventArgs
         {
             public OnErrorArgs(JObject? _event, Exception exception, string journal, bool firstRun)
