@@ -324,7 +324,7 @@ namespace EdTools
             public bool Abandoned { get; set; }
             public string UpdateType { get; set; }
             public string CargoType { get; set; }
-            public int StartMarketID { get; set; }
+            public long StartMarketID { get; set; }
             public int EndMarketID { get; set; }
             public int ItemsCollected { get; set; }
             public int ItemsDelivered { get; set; }
