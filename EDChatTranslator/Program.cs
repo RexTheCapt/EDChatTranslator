@@ -25,12 +25,15 @@ namespace EDChatTranslator
 
             if (!_handlersSet)
             {
-                JournalScanner.ReceiveTextHandler += JournalScanner_ReceiveTextHandler;
-                JournalScanner.SendTextHandler += JournalScanner_SendTextHandler;
-                JournalScanner.UnknownEventHandler += JournalScanner_UnknownEventHandler;
-                //JournalScanner.OnEventHandler += JournalScanner_OnEventHandler;
+                //JournalScanner.ReceiveTextHandler += JournalScanner_ReceiveTextHandler;
+                //JournalScanner.SendTextHandler += JournalScanner_SendTextHandler;
+                //JournalScanner.UnknownEventHandler += JournalScanner_UnknownEventHandler;
+                JournalScanner.OnEventHandler += JournalScanner_OnEventHandler;
+                JournalScanner.OnErrorHandler += JournalScanner_OnErrorHandler;
                 _handlersSet = true;
             }
+
+            string input = "";
 
             while (true)
             {
@@ -44,6 +47,16 @@ namespace EDChatTranslator
                 while (Console.KeyAvailable)
                 {
                     ConsoleKeyInfo consoleKeyInfo = Console.ReadKey(true);
+                    ConsoleKey key = consoleKeyInfo.Key;
+                    char character = ((char)key);
+                    if ((character >= 'a' && character <= 'z') || 
+                        (character >= 'A' && character <= 'Z') ||
+                        character == ':')
+                        input = $"{input}{character}";
+                    if (character == '\b')
+                        input = $"{input.Substring(0, input.Length - 1)}";
+                    ClearLine();
+                    Console.Write($"{input}");
                     brk = consoleKeyInfo.Key == ConsoleKey.Q;
 
                     if (brk)
@@ -65,68 +78,65 @@ namespace EDChatTranslator
             }
         }
 
+        private static void ClearLine()
+        {
+
+        }
+
+        private static void JournalScanner_OnErrorHandler(object? sender, EventArgs e)
+        {
+            var eargs = (JournalScanner.OnErrorArgs)e;
+        }
+
         private static void JournalScanner_OnEventHandler(object? sender, EventArgs e)
         {
-            var ea = (JournalScanner.OnEventArgs)e;
+            var eargs = (JournalScanner.OnEventArgs)e;
+            if (eargs.FirstRun) return;
 
-            if (ea.FirstRun) return;
+            JsonClass.Root root = eargs.OnEvent;
 
-            Console.ForegroundColor = ConsoleColor.Gray;
-            Console.WriteLine($"{ea.OnEvent.Value<string>("event")}");
-        }
+            string _event = root._event;
+            int direction = 0;
+            DateTime timestamp = root.timestamp;
+            string from;
+            bool received;
+            string? message = root.Message;
 
-        private static void JournalScanner_UnknownEventHandler(object? sender, EventArgs e)
-        {
-            Console.ForegroundColor = ConsoleColor.Red;
-            JournalScanner.UnknownEventArgs ea = (JournalScanner.UnknownEventArgs)e;
-            Console.WriteLine($"The event \"{ea.UnknownEvent.Value<string>("event")}\" is unknown");
-        }
+            if (_event.Equals("ReceiveText"))
+                direction++;
+            else if (_event.Equals("SendText"))
+                direction--;
+            else return;
 
-        private static void JournalScanner_SendTextHandler(object? sender, EventArgs e)
-        {
-            JournalScanner.SendTextEventArgs eArgs = (JournalScanner.SendTextEventArgs)e;
-            if (eArgs.FirstRun) return;
+            if (direction == 0) return;
 
-            Newtonsoft.Json.Linq.JObject receiveText = eArgs.SendText;
-            string? to = receiveText.Value<string>("To");
-            string? message = receiveText.Value<string>("Message");
-            bool? sent = receiveText.Value<bool>("Sent");
-            DateTime? timestamp = receiveText.Value<DateTime>("timestamp");
+            if (direction == -1)
+            {
+                string? to = root.To;
+                bool? sent = root.Sent;
+                from = "me";
+                received = false;
 
-            if (sent == null || !(bool)sent) return;
-            if (to == null || to.Equals("npc")) return;
-            if (message == null) return;
-            if (sent == null) return;
+                if (sent == null) return;
+                if (!(bool)sent) return;
+            }
+            else if (direction == 1)
+            {
+                string? channel = root.Channel;
+                from = root.From;
+                received = true;
 
+                if (channel == null) return;
+                if (channel.Equals("npc")) return;
+            }
+            else return;
+            
             string translatedMessage = Translate(message);
 
-            Console.ForegroundColor = ConsoleColor.DarkBlue;
-            Console.WriteLine(FormatMessage((DateTime)timestamp, false, "me", message));
-            Console.ForegroundColor = ConsoleColor.Blue;
-            Console.WriteLine(FormatMessage((DateTime)timestamp, false, "me", translatedMessage));
-        }
-
-        private static void JournalScanner_ReceiveTextHandler(object? sender, EventArgs e)
-        {
-            JournalScanner.ReceiveTextEventArgs eArgs = (JournalScanner.ReceiveTextEventArgs)e;
-            if (eArgs.FirstRun) return;
-
-            Newtonsoft.Json.Linq.JObject receiveText = eArgs.ReceiveText;
-            string? channel = receiveText.Value<string>("Channel");
-            string? message = receiveText.Value<string>("Message");
-            string? from = receiveText.Value<string>("From");
-            DateTime? timestamp = receiveText.Value<DateTime>("timestamp");
-
-            if (channel == null || channel.Equals("npc")) return;
-            if (message == null) return;
-            if (from == null) return;
-
-            string translatedMessage = Translate(message);
-
-            Console.ForegroundColor = ConsoleColor.DarkGreen;
-            Console.WriteLine(FormatMessage((DateTime)timestamp, true, from, message));
-            Console.ForegroundColor = ConsoleColor.Green;
-            Console.WriteLine(FormatMessage((DateTime)timestamp, true, from, translatedMessage));
+            Console.ForegroundColor = received ? ConsoleColor.DarkGreen : ConsoleColor.DarkBlue;
+            Console.WriteLine(FormatMessage(timestamp, received, from, message));
+            Console.ForegroundColor = received ? ConsoleColor.Green : ConsoleColor.Blue;
+            Console.WriteLine(FormatMessage(timestamp, received, from, translatedMessage));
         }
 
         private static string FormatMessage(DateTime timestamp, bool received, string from, string message)
@@ -147,7 +157,8 @@ namespace EDChatTranslator
                 var result = httpClient.GetStringAsync(url).Result;
                 try
                 {
-                    string fix = result.Substring(4, result.IndexOf("\"", 4, StringComparison.Ordinal) - 4);
+                    int length = result.IndexOf("\"", 4, StringComparison.Ordinal) - 4;
+                    string fix = result.Substring(4, length);
                     return fix;
                 }
                 catch
