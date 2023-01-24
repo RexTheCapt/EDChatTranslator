@@ -13,6 +13,7 @@ namespace EDChatTranslator
         private static string? languageCode;
         private readonly static string MessageFormat = "[__TIMESTAMP__] __DIRECTION__ __FROM__ : __MESSAGE__";
         private static bool _handlersSet = false;
+        private static string input = "";
 
         internal static void Main()
         {
@@ -33,54 +34,77 @@ namespace EDChatTranslator
                 _handlersSet = true;
             }
 
-            string input = "";
-
             while (true)
             {
                 js.TimerScan();
                 Console.ForegroundColor = ConsoleColor.Gray;
 
                 DateTime end = DateTime.Now;
-                Thread.Sleep(1000);
+                Thread.Sleep(100);
 
                 bool brk = false;
                 while (Console.KeyAvailable)
                 {
                     ConsoleKeyInfo consoleKeyInfo = Console.ReadKey(true);
                     ConsoleKey key = consoleKeyInfo.Key;
-                    char character = ((char)key);
+                    char character = consoleKeyInfo.KeyChar;
                     if ((character >= 'a' && character <= 'z') || 
                         (character >= 'A' && character <= 'Z') ||
-                        character == ':')
+                        character == ':' || character == ' ')
                         input = $"{input}{character}";
-                    if (character == '\b')
+                    if (character == '\b' && input.Length > 0)
                         input = $"{input.Substring(0, input.Length - 1)}";
                     ClearLine();
                     Console.Write($"{input}");
-                    brk = consoleKeyInfo.Key == ConsoleKey.Q;
 
-                    if (brk)
-                        Console.WriteLine("Quitting...");
+                    if (character != '\r') continue;
 
-                    if (consoleKeyInfo.Modifiers.HasFlag(ConsoleModifiers.Control) && consoleKeyInfo.Modifiers.HasFlag(ConsoleModifiers.Shift) && consoleKeyInfo.Key == ConsoleKey.R)
+                    if (input.IndexOf(':') != 2)
                     {
-                        Main();
-                        return;
+                        ClearLine();
+                        Console.ForegroundColor = ConsoleColor.Red;
+                        WriteLine("Requires language code! Example: \"en:<message>\"");
+                        continue;
                     }
-                    else if (consoleKeyInfo.Modifiers.HasFlag(ConsoleModifiers.Control) && consoleKeyInfo.Key == ConsoleKey.R)
+
+                    string toTranslate = input;
+
+                    string languageCode = toTranslate.Substring(0, toTranslate.IndexOf(":"));
+                    toTranslate = toTranslate.Substring(toTranslate.IndexOf(":") + 1);
+
+                    if (string.IsNullOrWhiteSpace(toTranslate))
                     {
-                        Console.WriteLine("Re-reading journal...");
-                        js.ReRead();
+                        Console.ForegroundColor = ConsoleColor.Red;
+                        WriteLine("The message is empty.");
+                        continue;
                     }
+                    input = "";
+
+                    WriteLine($"{languageCode} || {toTranslate} || {toTranslate.Length}");
                 }
-                
+
                 if (brk) break;
             }
         }
 
+        private static void WriteLine(string v)
+        {
+            ClearLine();
+            Console.WriteLine(v);
+            Console.ForegroundColor = ConsoleColor.Gray;
+            Console.Write(input);
+        }
+
         private static void ClearLine()
         {
+            StringBuilder sb = new();
 
+            while (sb.Length < Console.WindowWidth)
+                sb.Append(" ");
+
+            Console.CursorLeft = 0;
+            Console.Write(sb.ToString());
+            Console.CursorLeft = 0;
         }
 
         private static void JournalScanner_OnErrorHandler(object? sender, EventArgs e)
