@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading.Tasks;
 
@@ -14,6 +15,9 @@ namespace EDChatTranslator
         private readonly static string MessageFormat = "[__TIMESTAMP__] __DIRECTION__ __FROM__ : __MESSAGE__";
         private static bool _handlersSet = false;
         private static string input = "";
+        private static JournalScanner js = new JournalScanner();
+        private static bool enableGoogleTranslate = true;
+        private static bool showAllEvents = false;
 
         internal static void Main()
         {
@@ -22,7 +26,6 @@ namespace EDChatTranslator
             languageCode = Console.ReadLine();
             Console.WriteLine($"Language code is set to {languageCode}, translation has started.");
 
-            JournalScanner js = new JournalScanner();
 
             if (!_handlersSet)
             {
@@ -50,7 +53,7 @@ namespace EDChatTranslator
                     char character = consoleKeyInfo.KeyChar;
                     if ((character >= 'a' && character <= 'z') || 
                         (character >= 'A' && character <= 'Z') ||
-                        character == ':' || character == ' ')
+                        character == ':' || character == ' ' || character == '/')
                         input = $"{input}{character}";
                     if (character == '\b' && input.Length > 0)
                         input = $"{input.Substring(0, input.Length - 1)}";
@@ -58,6 +61,12 @@ namespace EDChatTranslator
                     Console.Write($"{input}");
 
                     if (character != '\r') continue;
+
+                    if (input.StartsWith("/"))
+                    {
+                        DoCommand(input);
+                        continue;
+                    }
 
                     if (input.IndexOf(':') != 2)
                     {
@@ -78,19 +87,59 @@ namespace EDChatTranslator
                         WriteLine("The message is empty.");
                         continue;
                     }
-                    input = "";
+
+                    input = $"{languageCode}:";
 
                     WriteLine($"{languageCode} || {toTranslate} || {toTranslate.Length}");
+
+                    string translated = Translate(languageCode, toTranslate);
+                    WriteLine(translated);
                 }
 
                 if (brk) break;
             }
         }
 
-        private static void WriteLine(string v)
+        private static void DoCommand(string command)
+        {
+            var split = command.Trim().Substring(1).ToLower().Split(' ');
+            input = "";
+
+            if (split[0].Equals("rescan"))
+            {
+                if (split.Length > 1 && split[1].Equals("false"))
+                    enableGoogleTranslate = false;
+                
+                int lines = js.CountLines();
+
+                DateTime timer = DateTime.Now.AddSeconds(3);
+
+                while (timer > DateTime.Now)
+                {
+                    WriteLine($"Re-scanning {lines} lines in {timer - DateTime.Now}", false);
+                }
+                
+                js.ReRead();
+                js.TimerScan();
+
+                if (split.Length > 1 && split[1].Equals("false"))
+                    enableGoogleTranslate = true;
+            }
+            else if (split[0].Equals("events"))
+            {
+                showAllEvents = !showAllEvents;
+                if (showAllEvents)
+                    WriteLine("Showing all events.");
+                else
+                    WriteLine("Hiding all events.");
+            }
+        }
+
+        private static void WriteLine(string text) => WriteLine(text, true);
+        private static void WriteLine(string text, bool newline)
         {
             ClearLine();
-            Console.WriteLine(v);
+            Console.Write($"{text}{(newline ? "\n" : "")}");
             Console.ForegroundColor = ConsoleColor.Gray;
             Console.Write(input);
         }
@@ -130,7 +179,15 @@ namespace EDChatTranslator
                 direction++;
             else if (_event.Equals("SendText"))
                 direction--;
-            else return;
+            else
+            {
+                if (showAllEvents)
+                {
+                    Console.ForegroundColor = ConsoleColor.DarkGray;
+                    WriteLine($"[{timestamp}] {_event}");
+                }
+                return;
+            }
 
             if (direction == 0) return;
 
@@ -158,9 +215,9 @@ namespace EDChatTranslator
             string translatedMessage = Translate(message);
 
             Console.ForegroundColor = received ? ConsoleColor.DarkGreen : ConsoleColor.DarkBlue;
-            Console.WriteLine(FormatMessage(timestamp, received, from, message));
+            WriteLine(FormatMessage(timestamp, received, from, message));
             Console.ForegroundColor = received ? ConsoleColor.Green : ConsoleColor.Blue;
-            Console.WriteLine(FormatMessage(timestamp, received, from, translatedMessage));
+            WriteLine(FormatMessage(timestamp, received, from, translatedMessage));
         }
 
         private static string FormatMessage(DateTime timestamp, bool received, string from, string message)
@@ -169,9 +226,11 @@ namespace EDChatTranslator
             return s;
         }
 
-        private static string Translate(string? v)
+        private static string? Translate(string toTranslate) => Translate(languageCode, toTranslate); 
+        private static string? Translate(string? languageCode, string? v)
         {
             if (v == null) return null;
+            if (!enableGoogleTranslate) return null;
 
             var toLanguage = languageCode;//English
             var fromLanguage = "auto";//Deutsch

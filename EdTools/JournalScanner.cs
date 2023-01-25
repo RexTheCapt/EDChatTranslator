@@ -50,56 +50,48 @@ namespace EdTools
             DateTime currentWriteTime = DateTime.MinValue;
 
             if (overrideFile == null)
-                foreach (string f in Directory.GetFiles(_journalPath, "Journal.*.log"))
-                {
-                    FileInfo fi = new FileInfo(f);
-
-                    if (fi.LastWriteTime > currentWriteTime)
-                    {
-                        currentWriteTime = fi.LastWriteTime;
-                        newest = f;
-                    }
-                }
+                GetNewestJournalFile(ref newest, ref currentWriteTime);
 
             if (LastWriteTime != currentWriteTime || overrideFile != null)
             {
                 if (overrideFile != null)
                     newest = overrideFile;
 
-                var fs = new FileStream(newest, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
-                using (var reader = new StreamReader(fs))
-                    while (!reader.EndOfStream)
+                var reader = newReader(newest);
+                while (!reader.EndOfStream)
+                {
+                    string? read = reader.ReadLine();
+
+                    if (read == null) continue;
+                    JsonClass.Root? _event;
+
+                    try
                     {
-                        string? read = reader.ReadLine();
+                        _event = JsonConvert.DeserializeObject<JsonClass.Root>(read);
+                    }
+                    catch (Exception e)
+                    {
+                        OnError(new OnErrorArgs(_event: JsonConvert.DeserializeObject<JObject>(read), e, journal: newest, firstRun: FirstRun));
+                        continue;
+                    }
 
-                        if (read == null) continue;
-                        JsonClass.Root? _event;
-
-                        try
+                    if (_event != null)
+                    {
+                        DateTime currentEventDateTime = _event.timestamp;
+                        if (currentEventDateTime >= LastEventTime && currentEventDateTime != LastProcessedEventTime || overrideFile != null)
                         {
-                            _event = JsonConvert.DeserializeObject<JsonClass.Root>(read);
-                        } catch (Exception e)
-                        {
-                            OnError(new OnErrorArgs(_event: JsonConvert.DeserializeObject<JObject>(read), e, journal: newest, firstRun: FirstRun));
-                            continue;
-                        }
+                            if (!sendEventsOnFirstRun && FirstRun && overrideFile == null)
+                                goto SkipEventSend;
 
-                        if (_event != null)
-                        {
-                            DateTime currentEventDateTime = _event.timestamp;
-                            if (currentEventDateTime >= LastEventTime && currentEventDateTime != LastProcessedEventTime || overrideFile != null)
-                            {
-                                if (!sendEventsOnFirstRun && FirstRun && overrideFile == null)
-                                    goto SkipEventSend;
+                            OnEvent(new OnEventArgs(_event: _event, journal: newest, firstRun: FirstRun));
 
-                                OnEvent(new OnEventArgs(_event: _event, journal: newest, firstRun: FirstRun));
-
-                            SkipEventSend:
-                                if (overrideFile == null)
-                                    LastEventTime = currentEventDateTime;
-                            }
+                        SkipEventSend:
+                            if (overrideFile == null)
+                                LastEventTime = currentEventDateTime;
                         }
                     }
+                }
+                reader.Dispose();
             }
 
             FirstRun = false;
@@ -107,6 +99,33 @@ namespace EdTools
             LastProcessedEventTime = LastEventTime;
         }
 
+        private StreamReader newReader(string file)
+        {
+            var fs = new FileStream(file, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+            return new StreamReader(fs);
+        }
+
+        private void GetNewestJournalFile(ref string newest, ref DateTime currentWriteTime)
+        {
+            foreach (string f in Directory.GetFiles(_journalPath, "Journal.*.log"))
+            {
+                FileInfo fi = new FileInfo(f);
+
+                if (fi.LastWriteTime > currentWriteTime)
+                {
+                    currentWriteTime = fi.LastWriteTime;
+                    newest = f;
+                }
+            }
+        }
+
+        /// <summary>
+        /// Re read the current journal.
+        /// </summary>
+        public void ReScan() => ReRead();
+        /// <summary>
+        /// Re read the current journal.
+        /// </summary>
         public void ReRead()
         {
             LastEventTime = DateTime.MinValue;
@@ -151,6 +170,28 @@ namespace EdTools
         {
             _instance = null;
             _journalPath = "";
+        }
+
+        /// <summary>
+        /// Counbt all lines in the newest journal file.
+        /// </summary>
+        /// <returns>Line count</returns>
+        public int CountLines()
+        {
+            string newest = "";
+            DateTime dt = DateTime.MinValue;
+            GetNewestJournalFile(ref newest, ref dt);
+
+            int lines = 0;
+            StreamReader streamReader = newReader(newest);
+            while (!streamReader.EndOfStream)
+            {
+                streamReader.ReadLine();
+                lines++;
+            }
+            streamReader.Dispose();
+
+            return lines;
         }
 
         public class OnErrorArgs : System.EventArgs
